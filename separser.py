@@ -1,8 +1,8 @@
 #!/usr/bin/python
 import hashlib
 import re
-from sqlalchemy import create_engine, Table, Column, Integer, String, MetaData, ForeignKey
-from sqlalchemy.exc import IntegrityError, OperationalError
+import io
+from sqlalchemy import create_engine, Table, MetaData
 from xml.sax import ContentHandler, parse
 
 CCSplitRX = re.compile("([A-Z][a-z]+)")
@@ -59,13 +59,27 @@ class StackExchangeMySQLHandler(ContentHandler):
 	def initTable(self, table_name):
 		self.table = Table(table_name, self.meta, autoload=True)
 
-class ErrorFinderHandler(ContentHandler):
+class PatternReplacementStream(file):
 
-	def __init__(self):
-		self.rowCount = 0
+	def __init__(self, *args, **kwargs):
+		super(PatternReplacementStream, self).__init__(*args, **kwargs)
+		self._pattern = re.compile("$^")
+		
+	@property
+	def pattern(self):
+		return self._pattern
 
-	def startElement(self, name, attrs):
-		if name == "row": self.rowCount += 1
+	@pattern.setter
+	def pattern(self, pattern):
+		if type(pattern) is str:
+			self._pattern = re.compile(pattern)
+		else: self._pattern = pattern
+
+	def read(self, *args, **kwargs):
+		return self.pattern.sub("", super(PatternReplacementStream, self).read(*args, **kwargs))
+	
+	def readline(self, *args, **kwargs):
+		return self.pattern.sub("", super(PatternReplacementStream, self).readline(*args, **kwargs))
 
 if __name__ == "__main__":
 	import sys
@@ -73,7 +87,8 @@ if __name__ == "__main__":
 	if len(sys.argv) < 3:
 		print >> sys.stderr, "Usage:\t%s <xmlfile> <dburi>" % sys.argv[0]
 	else:
-		f = open(sys.argv[1], "r")
-		sexchange_parser = ErrorFinderHandler() #StackExchangeMySQLHandler(sys.argv[2])
+		f = PatternReplacementStream(sys.argv[1], "r")
+		f.pattern = "&#x[0-8B-Cb-cEe];"
+		sexchange_parser = StackExchangeMySQLHandler(sys.argv[2])
 		parse(f, sexchange_parser)
 		f.close()
