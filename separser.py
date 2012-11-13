@@ -88,7 +88,7 @@ if __name__ == "__main__":
 		print >> sys.stderr, "Usage:\t%s <xmlfile> <dburi>" % sys.argv[0]
 	else:
 		f = PatternReplacementStream(sys.argv[1], "r")
-		f.pattern = "&#x[0-8B-Cb-cEe];"
+		f.pattern = "&#x([0-8B-Cb-cEe]|1[0-9A-Fa-f]|[dD][89][0-9A-Fa-f]{2}|[fF]{3}[EF]);"
 		sexchange_parser = StackExchangeMySQLHandler(sys.argv[2])
 		parse(f, sexchange_parser)
 		f.close()
