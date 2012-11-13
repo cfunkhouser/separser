@@ -1,4 +1,5 @@
 #!/usr/bin/python
+import datetime
 import hashlib
 import re
 import io
@@ -22,6 +23,7 @@ class StackExchangeMySQLHandler(ContentHandler):
 		self.data = {}
 		self.firstElement = False
 		self.tableName = ""
+		self.rowCount = 0
 
 	def startElement(self, name, attrs):
 		if name == "row":
@@ -31,14 +33,13 @@ class StackExchangeMySQLHandler(ContentHandler):
 				model[attrToColumnName(attr)] = unicode(attrs.getValue(attr))
 				keys.append(attr)
 			keys = hashlib.md5("".join(keys)).hexdigest()
+			self.rowCount += 1
 			if not keys in self.data:
 				self.data[keys] = [model]
-				print "Key \"%s\" added" % keys
 			else:
 				self.data[keys].append(model)
 				if len(self.data[keys]) >= self.batchSize:
 					self.commit(self.data[keys])
-					print "Key \"%s\" committed and removed." % keys
 					del self.data[keys]
 		else:
 			if not self.firstElement:
@@ -53,7 +54,6 @@ class StackExchangeMySQLHandler(ContentHandler):
 	def endElement(self, name):
 		if name == self.tableName:
 			for key in self.data:
-				print "Flushing %d entries for key \"%s\"" % (len(self.data[key]), key)
 				self.commit(self.data[key])
 		
 	def initTable(self, table_name):
@@ -90,5 +90,9 @@ if __name__ == "__main__":
 		f = PatternReplacementStream(sys.argv[1], "r")
 		f.pattern = "&#x([0-8B-Cb-cEe]|1[0-9A-Fa-f]|[dD][89][0-9A-Fa-f]{2}|[fF]{3}[EF]);"
 		sexchange_parser = StackExchangeMySQLHandler(sys.argv[2])
+		print "Parsing %s ..." % sys.argv[1] ,
+		start_time = datetime.datetime.now()
 		parse(f, sexchange_parser)
+		end_time = datetime.datetime.now()
+		print "Done.\nStored %d rows in %f seconds." % (sexchange_parser.rowCount, (end_time - start_time).total_seconds())
 		f.close()
