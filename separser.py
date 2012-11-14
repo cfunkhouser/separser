@@ -91,6 +91,7 @@ if __name__ == "__main__":
 		f.pattern = "&#x([0-8B-Cb-cEe]|1[0-9A-Fa-f]|[dD][89][0-9A-Fa-f]{2}|[fF]{3}[EF]);"
 		sexchange_parser = StackExchangeMySQLHandler(sys.argv[2])
 		print "Parsing %s ..." % sys.argv[1] ,
+		sys.stdout.flush()
 		start_time = datetime.datetime.now()
 		parse(f, sexchange_parser)
 		end_time = datetime.datetime.now()
