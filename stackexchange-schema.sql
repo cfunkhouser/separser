@@ -17,7 +17,7 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see <http://www.gnu.org/licenses/>.
 --
--- MySQL 5.0+
+-- MySQL 5.6+
 -- Create the tables to hold parsed Stack Exchange data
 
 CREATE TABLE badges (
@@ -38,8 +38,8 @@ CREATE TABLE comments (
   id INT NOT NULL,
   post_id INT NOT NULL,
   score SMALLINT NOT NULL DEFAULT 0,
-  user_id INT NOT NULL,
-  text TEXT NOT NULL,
+  user_id INT,
+  text TEXT,
   PRIMARY KEY(id)
 ) CHARACTER SET utf8 COLLATE utf8_general_ci;
 
@@ -47,30 +47,39 @@ CREATE TABLE posthistory (
   id INT NOT NULL,
   post_history_type_id SMALLINT NOT NULL,
   post_id INT NOT NULL,
-  revision_guid VARCHAR(37) NOT NULL,
-  creation_date DATETIME NOT NULL,
-  user_id INT NOT NULL,
-  text TEXT NOT NULL,
+  revision_guid VARCHAR(37),
+  creation_date DATETIME,
+  user_id INT,
+  text TEXT,
+  PRIMARY KEY(id)
+) CHARACTER SET utf8 COLLATE utf8_general_ci;
+
+CREATE TABLE postlinks (
+  id INT NOT NULL,
+  post_id INT NOT NULL,
+  related_post_id INT NOT NULL,
+  link_type_id SMALLINT NOT NULL,
+  creation_date DATETIME,
   PRIMARY KEY(id)
 ) CHARACTER SET utf8 COLLATE utf8_general_ci;
 
 CREATE TABLE posts (
   id INT NOT NULL,
   post_type_id SMALLINT NOT NULL,
-  accepted_answer_id INT NOT NULL,
-  creation_date DATETIME NOT NULL,
+  accepted_answer_id INT,
+  creation_date DATETIME,
   score SMALLINT NOT NULL DEFAULT 0,
   view_count INT NOT NULL DEFAULT 0,
-  body MEDIUMTEXT NOT NULL,
-  owner_user_id INT NOT NULL,
-  last_editor_user_id INT NOT NULL,
+  body MEDIUMTEXT,
+  owner_user_id INT,
+  last_editor_user_id INT,
   last_editor_display_name VARCHAR(255) NOT NULL DEFAULT "",
-  last_editor_date DATETIME NOT NULL,
-  last_activity_date DATETIME NOT NULL,
+  last_editor_date DATETIME,
+  last_activity_date DATETIME,
   title VARCHAR(255) NOT NULL DEFAULT "",
   -- This should probably be a separate table, but we should think
   -- hard about how to do the extra parsing.
-  tags TEXT NOT NULL,
+  tags TEXT,
   answer_count SMALLINT NOT NULL DEFAULT 0,
   comment_count SMALLINT NOT NULL DEFAULT 0,
   favorite_count SMALLINT NOT NULL DEFAULT 0,
@@ -80,8 +89,8 @@ CREATE TABLE posts (
 CREATE TABLE users (
   id INT NOT NULL,
   reputation INT NOT NULL DEFAULT 0,
-  creation_date DATETIME NOT NULL,
-  display_name VARCHAR(255) NOT NULL,
+  creation_date DATETIME,
+  display_name VARCHAR(255),
   email_hash VARCHAR(32) NOT NULL DEFAULT "",
   last_access_date DATETIME,
   website_url VARCHAR(255) DEFAULT "",
