@@ -1,0 +1,26 @@
+An importer to MySQL of Stack Exchange XML data files.
+
+Requirements:
+
+  - Python 2.7(ish)
+  - SQLAlchemy Python Library
+  - MySQLdb Python Library
+  - MySQL Client Libraries
+  - MySQL 5.6 (probably lower, but not tested)
+  - Stack Overflow data (http://blog.stackexchange.com/category/cc-wiki-dump/)
+
+  Purportedly MariaDB works as well, but that is also untested.
+
+Usage:
+
+  First, create a database to store the information, and create the tables
+  defined in stackexchange-schema.sql.
+
+  To import one of the files from the data dump, pass it to the script along
+  with a URI describing the database to populate. To import the Comments.xml
+  file to a database named 'se_data' on host 'dbhost' as user 'se_user' with password 'se_pass,' you would use the command:
+
+  ./separser.py Comments.xml mysql://se_user:se_pass@dbhost/se_data?charset=utf8
+
+  The last bit about the charset is super important. Leaving it off will lead to
+  pain.
