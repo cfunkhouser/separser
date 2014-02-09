@@ -18,7 +18,8 @@ Usage:
 
   To import one of the files from the data dump, pass it to the script along
   with a URI describing the database to populate. To import the Comments.xml
-  file to a database named 'se_data' on host 'dbhost' as user 'se_user' with password 'se_pass,' you would use the command:
+  file to a database named 'se_data' on host 'dbhost' as user 'se_user' with
+  password 'se_pass,' you would use the command:
 
   ./separser.py Comments.xml mysql://se_user:se_pass@dbhost/se_data?charset=utf8
 
