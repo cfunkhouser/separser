@@ -19,101 +19,146 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+__author__ = 'christian.funkhouser@gmail.com (Christian Funkhouser)'
+
+"""An importer to MySQL of Stack Exchange XML data files.
+
+At the time of this writing, the creative-commons licensed dumps are found at:
+http://blog.stackexchange.com/category/cc-wiki-dump/
+"""
+
 import datetime
 import hashlib
-import re
 import io
-from sqlalchemy import create_engine, Table, MetaData
-from xml.sax import ContentHandler, parse
+import logging
+import re
+import sys
 
-CCSplitRX = re.compile("([A-Z][a-z]+)")
+from xml import sax
 
-def attrToColumnName(attr):
-	global CamelCaseSplitRegex
-	return "_".join(filter(lambda x: len(x) > 0, CCSplitRX.split(attr))).lower()
+try:
+  import sqlalchemy
+except:
+  logging.error('SQLAlchemy could not be found. Is it installed?')
 
-class StackExchangeMySQLHandler(ContentHandler):
-	
-	def __init__(self, dburi, batchSize=100):
-		self.dbengine = create_engine(dburi, pool_recycle=7200)
-		self.meta = MetaData()
-		self.meta.bind = self.dbengine
-		self.table = None
-		self.batchSize = batchSize
-		self.data = {}
-		self.firstElement = False
-		self.tableName = ""
-		self.rowCount = 0
+CC_SPLIT_RX = re.compile('([A-Z][a-z]+)')
+PARSE_PATTERN = (
+    '&#x([0-8B-Cb-cEe]|1[0-9A-Fa-f]|[dD][89][0-9A-Fa-f]{2}|[fF]{3}[EF]);')
 
-	def startElement(self, name, attrs):
-		if name == "row":
-			model = {}
-			keys = []
-			for attr in attrs.getNames():
-				model[attrToColumnName(attr)] = unicode(attrs.getValue(attr))
-				keys.append(attr)
-			keys = hashlib.md5("".join(keys)).hexdigest()
-			self.rowCount += 1
-			if not keys in self.data:
-				self.data[keys] = [model]
-			else:
-				self.data[keys].append(model)
-				if len(self.data[keys]) >= self.batchSize:
-					self.commit(self.data[keys])
-					del self.data[keys]
-		else:
-			if not self.firstElement:
-				self.initTable(name)
-				self.firstElement = True
-				self.tableName = name
 
-	def commit(self, data):
-		ins = self.table.insert()
-		self.dbengine.connect().execute(ins, data)
+def _AttrToColumnName(attr):
+  return '_'.join(filter(lambda x: len(x) > 0, CC_SPLIT_RX.split(attr))).lower()
 
-	def endElement(self, name):
-		if name == self.tableName:
-			for key in self.data:
-				self.commit(self.data[key])
-		
-	def initTable(self, table_name):
-		self.table = Table(table_name, self.meta, autoload=True)
+
+class StackExchangeMySQLHandler(sax.ContentHandler):
+  """An XML SAX parser which populates a database from a Stack Exchange dump."""
+
+  def __init__(self, db_uri, batch_size=100):
+    """Create a StackExchangeMySQLHandler.
+
+    Args:
+      db_uri: (str) A URI identifying the target database.
+      batch_size: (str) Number of entries to buffer in memory before batch
+          inserting into the database.
+    """
+    self.dbengine = sqlalchemy.create_engine(db_uri, pool_recycle=7200)
+    self.meta = sqlalchemy.MetaData()
+    self.meta.bind = self.dbengine
+    self.table = None
+    self.batch_size = batch_size
+    self.data = {}
+    self.firstElement = False
+    self.tableName = ''
+    self.rowCount = 0
+
+  def startElement(self, name, attrs):
+    if name == 'row':
+      model = {}
+      keys = []
+      for attr in attrs.getNames():
+        model[_AttrToColumnName(attr)] = unicode(attrs.getValue(attr))
+        keys.append(attr)
+      keys = hashlib.md5(''.join(keys)).hexdigest()
+      self.rowCount += 1
+      if not keys in self.data:
+        self.data[keys] = [model]
+      else:
+        self.data[keys].append(model)
+        if len(self.data[keys]) >= self.batch_size:
+          self.commit(self.data[keys])
+          del self.data[keys]
+    elif not self.firstElement:
+        self.initTable(name)
+        self.firstElement = True
+        self.tableName = name
+
+  def commit(self, data):
+    ins = self.table.insert()
+    self.dbengine.connect().execute(ins, data)
+
+  def endElement(self, name):
+    if name == self.tableName:
+      for key in self.data:
+        self.commit(self.data[key])
+
+  def initTable(self, table_name):
+    self.table = sqlalchemy.Table(table_name, self.meta, autoload=True)
 
 class PatternReplacementStream(file):
+  """File object Wrapper which removes a pattern from a file during read.
 
-	def __init__(self, *args, **kwargs):
-		super(PatternReplacementStream, self).__init__(*args, **kwargs)
-		self._pattern = re.compile("$^")
-		
-	@property
-	def pattern(self):
-		return self._pattern
+  Only works with text data. Behavior is undefined on binary data.
+  """
 
-	@pattern.setter
-	def pattern(self, pattern):
-		if type(pattern) is str:
-			self._pattern = re.compile(pattern)
-		else: self._pattern = pattern
+  def __init__(self, *args, **kwargs):
+    super(PatternReplacementStream, self).__init__(*args, **kwargs)
+    self._pattern = re.compile('$^')
 
-	def read(self, *args, **kwargs):
-		return self.pattern.sub("", super(PatternReplacementStream, self).read(*args, **kwargs))
-	
-	def readline(self, *args, **kwargs):
-		return self.pattern.sub("", super(PatternReplacementStream, self).readline(*args, **kwargs))
+  @property
+  def pattern(self):
+    return self._pattern
 
-if __name__ == "__main__":
-	import sys
-	
-	if len(sys.argv) < 3:
-		print >> sys.stderr, "Usage:\t%s <xmlfile> <dburi>" % sys.argv[0]
-	else:
-		f = PatternReplacementStream(sys.argv[1], "r")
-		f.pattern = "&#x([0-8B-Cb-cEe]|1[0-9A-Fa-f]|[dD][89][0-9A-Fa-f]{2}|[fF]{3}[EF]);"
-		sexchange_parser = StackExchangeMySQLHandler(sys.argv[2])
-		print "Parsing %s ..." % sys.argv[1] ,
-		sys.stdout.flush()
-		start_time = datetime.datetime.now()
-		parse(f, sexchange_parser)
-		end_time = datetime.datetime.now()
-		print "Done.\nStored %d rows in %f seconds." % (sexchange_parser.rowCount, (end_time - start_time).total_seconds())
-		f.close()
+  @pattern.setter
+  def pattern(self, pattern):
+    if type(pattern) is str:
+      self._pattern = re.compile(pattern)
+    else: self._pattern = pattern
+
+  def read(self, *args, **kwargs):
+    return self.pattern.sub(
+        '', super(PatternReplacementStream, self).read(*args, **kwargs))
+
+  def readline(self, *args, **kwargs):
+    return self.pattern.sub(
+        '', super(PatternReplacementStream, self).readline(*args, **kwargs))
+
+
+def ParseStackExchangeFile(xml_file_path, db_uri):
+  """Parse the provided XML file into the Database.
+
+  Args:
+    xml_file_path: (str) Path to the XML file containing the SE data.
+    db_uri: (str) The URI for the target database.
+  """
+  pattern_stream = PatternReplacementStream(xml_file_path, 'r')
+  pattern_stream.pattern = PARSE_PATTERN
+
+  sexchange_parser = StackExchangeMySQLHandler(db_uri)
+  logging.info('Parsing %s', xml_file_path)
+  start_time = datetime.datetime.now()
+
+  # Parse the xml file
+  sax.parse(pattern_stream, sexchange_parser)
+
+  end_time = datetime.datetime.now()
+  logging.info(
+    'Stored %d rows in %f seconds.',
+    (sexchange_parser.rowCount, (end_time - start_time).total_seconds()))
+  pattern_stream.close()
+
+
+if __name__ == '__main__':
+  if len(sys.argv) < 3:
+    print >> sys.stderr, 'Usage:\t%s <xmlfile> <dburi>' % sys.argv[0]
+    sys.exit(1)
+  ParseStackExchangeFile(sys.argv[1], sys.argv[2])
