@@ -39,7 +39,7 @@ CREATE TABLE comments (
   post_id INT NOT NULL,
   score SMALLINT NOT NULL DEFAULT 0,
   user_id INT NOT NULL,
-  text TEXT NOT NULL DEFAULT "",
+  text TEXT NOT NULL,
   PRIMARY KEY(id)
 ) CHARACTER SET utf8 COLLATE utf8_general_ci;
 
@@ -50,7 +50,7 @@ CREATE TABLE posthistory (
   revision_guid VARCHAR(37) NOT NULL,
   creation_date DATETIME NOT NULL,
   user_id INT NOT NULL,
-  text TEXT NOT NULL DEFAULT "",
+  text TEXT NOT NULL,
   PRIMARY KEY(id)
 ) CHARACTER SET utf8 COLLATE utf8_general_ci;
 
@@ -61,7 +61,7 @@ CREATE TABLE posts (
   creation_date DATETIME NOT NULL,
   score SMALLINT NOT NULL DEFAULT 0,
   view_count INT NOT NULL DEFAULT 0,
-  body MEDIUMTEXT NOT NULL DEFAULT "",
+  body MEDIUMTEXT NOT NULL,
   owner_user_id INT NOT NULL,
   last_editor_user_id INT NOT NULL,
   last_editor_display_name VARCHAR(255) NOT NULL DEFAULT "",
